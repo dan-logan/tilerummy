@@ -107,6 +107,57 @@ function determineStagedSetType(tiles: Tile[]): 'run' | 'group' | 'invalid' {
   return 'invalid';
 }
 
+function arrangeRunTiles(tiles: Tile[]): Tile[] {
+  const jokers = tiles.filter(t => t.isJoker);
+  const regularTiles = tiles.filter(t => !t.isJoker);
+
+  if (regularTiles.length === 0) return tiles;
+
+  // Sort regular tiles by number
+  const sorted = [...regularTiles].sort((a, b) => a.number - b.number);
+  const minNum = sorted[0].number;
+  const maxNum = sorted[sorted.length - 1].number;
+
+  // Calculate jokers needed to fill gaps
+  let jokersForGaps = 0;
+  for (let i = 1; i < sorted.length; i++) {
+    jokersForGaps += sorted[i].number - sorted[i - 1].number - 1;
+  }
+
+  const jokersToExtend = jokers.length - jokersForGaps;
+
+  // Determine extension direction - prefer extending toward lower numbers first
+  const maxExtendBefore = minNum - 1;
+  const extendBefore = Math.min(jokersToExtend, maxExtendBefore);
+  const extendAfter = jokersToExtend - extendBefore;
+
+  // Build the arranged tiles
+  const result: Tile[] = [];
+  let jokerIndex = 0;
+
+  // Add jokers at the beginning (extending down)
+  for (let i = 0; i < extendBefore && jokerIndex < jokers.length; i++) {
+    result.push(jokers[jokerIndex++]);
+  }
+
+  // Add regular tiles with jokers filling gaps
+  let regularIndex = 0;
+  for (let num = minNum; num <= maxNum; num++) {
+    if (regularIndex < sorted.length && sorted[regularIndex].number === num) {
+      result.push(sorted[regularIndex++]);
+    } else if (jokerIndex < jokers.length) {
+      result.push(jokers[jokerIndex++]);
+    }
+  }
+
+  // Add jokers at the end (extending up)
+  for (let i = 0; i < extendAfter && jokerIndex < jokers.length; i++) {
+    result.push(jokers[jokerIndex++]);
+  }
+
+  return result;
+}
+
 export function stageCurrentSelection(state: GameState): GameState {
   if (state.selectedTiles.length === 0 && state.selectedBoardTiles.length === 0) return state;
 
@@ -115,9 +166,12 @@ export function stageCurrentSelection(state: GameState): GameState {
   const setType = determineStagedSetType(allSelectedTiles);
   const value = valid ? calculateSetValue(allSelectedTiles) : 0;
 
+  // Arrange tiles properly for runs (puts jokers in correct positions)
+  const arrangedTiles = setType === 'run' ? arrangeRunTiles(allSelectedTiles) : allSelectedTiles;
+
   const newStagedSet: StagedSet = {
     id: `staged-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-    tiles: allSelectedTiles,
+    tiles: arrangedTiles,
     isValid: valid,
     type: setType,
     value,
