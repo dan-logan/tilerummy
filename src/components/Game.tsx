@@ -88,7 +88,7 @@ export default function Game() {
     setError(null);
 
     const afterDraw = drawTile(gameState);
-    const result = endTurn(afterDraw);
+    const result = endTurn(afterDraw, true); // true = drew a tile
     if ('error' in result) {
       setError(result.error);
       return;
@@ -169,7 +169,7 @@ export default function Game() {
 
       <Controls
         canDraw={gameState.pool.length > 0 && !madePlayThisTurn}
-        canEndTurn={madePlayThisTurn && !hasStagedSets}
+        canEndTurn={(madePlayThisTurn && !hasStagedSets) || (gameState.pool.length === 0 && !hasStagedSets)}
         hasStagedSets={hasStagedSets}
         allStagedValid={allStagedValid}
         hasSelected={hasSelectedAny}
@@ -185,9 +185,13 @@ export default function Game() {
           <div className="modal">
             <h2>{gameState.winner.isAI ? 'You Lost!' : 'You Won!'}</h2>
             <p>
-              {gameState.winner.isAI
-                ? `${gameState.winner.name} emptied their rack first.`
-                : 'Congratulations! You emptied your rack first!'}
+              {gameState.consecutivePasses >= gameState.players.length
+                ? gameState.winner.isAI
+                  ? `Game ended in stalemate. ${gameState.winner.name} had the lowest tile total.`
+                  : 'Game ended in stalemate. You had the lowest tile total!'
+                : gameState.winner.isAI
+                  ? `${gameState.winner.name} emptied their rack first.`
+                  : 'Congratulations! You emptied your rack first!'}
             </p>
             <button onClick={handleNewGame}>New Game</button>
           </div>

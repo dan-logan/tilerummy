@@ -316,12 +316,13 @@ function executeAIInitialMeld(state: GameState): GameState {
       }
       return player;
     });
-    return endAITurn({ ...currentState, players: finalPlayers });
+    return endAITurn({ ...currentState, players: finalPlayers }, true);
   }
 
   // Couldn't make 30 points - undo all plays and draw instead
   if (state.pool.length === 0) {
-    return endAITurn(state);
+    // Pool empty, can't make initial meld - pass
+    return endAITurn(state, false);
   }
 
   const [drawnTile, ...remainingPool] = state.pool;
@@ -335,11 +336,12 @@ function executeAIInitialMeld(state: GameState): GameState {
     return player;
   });
 
+  // Drawing a tile counts as an action, not a pass
   return endAITurn({
     ...state,
     players: updatedPlayers,
     pool: remainingPool,
-  });
+  }, true);
 }
 
 function executeAIRegularTurn(state: GameState): GameState {
@@ -349,7 +351,8 @@ function executeAIRegularTurn(state: GameState): GameState {
   if (possiblePlays.length === 0) {
     // Can't play, must draw
     if (state.pool.length === 0) {
-      return endAITurn(state);
+      // Pool empty, can't play - pass
+      return endAITurn(state, false);
     }
 
     const [drawnTile, ...remainingPool] = state.pool;
@@ -363,11 +366,12 @@ function executeAIRegularTurn(state: GameState): GameState {
       return player;
     });
 
+    // Drawing a tile counts as an action, not a pass
     return endAITurn({
       ...state,
       players: updatedPlayers,
       pool: remainingPool,
-    });
+    }, true);
   }
 
   // Execute the best play
@@ -406,7 +410,7 @@ function executeAIRegularTurn(state: GameState): GameState {
 
   // Try to make more plays
   const moreState = tryMoreAIPlays(newState);
-  return endAITurn(moreState);
+  return endAITurn(moreState, true);
 }
 
 function tryMoreAIPlays(state: GameState, depth: number = 0): GameState {
@@ -465,9 +469,46 @@ function tryMoreAIPlays(state: GameState, depth: number = 0): GameState {
   return tryMoreAIPlays(newState, depth + 1);
 }
 
-function endAITurn(state: GameState): GameState {
+function calculatePlayerTileTotal(tiles: Tile[]): number {
+  return tiles.reduce((sum, tile) => {
+    if (tile.isJoker) return sum + 30;
+    return sum + tile.number;
+  }, 0);
+}
+
+function findWinnerByLowestTiles(players: { id: number; name: string; tiles: Tile[]; hasPlayedInitialMeld: boolean; isAI: boolean }[]): typeof players[0] {
+  let winner = players[0];
+  let lowestTotal = calculatePlayerTileTotal(winner.tiles);
+
+  for (const player of players) {
+    const total = calculatePlayerTileTotal(player.tiles);
+    if (total < lowestTotal) {
+      lowestTotal = total;
+      winner = player;
+    }
+  }
+
+  return winner;
+}
+
+function endAITurn(state: GameState, madePlay: boolean = false): GameState {
   const nextPlayerIndex = (state.currentPlayerIndex + 1) % state.players.length;
   const nextPlayer = state.players[nextPlayerIndex];
+
+  // Track consecutive passes
+  const newConsecutivePasses = madePlay ? 0 : state.consecutivePasses + 1;
+
+  // Check if all players have passed consecutively (game stalemate)
+  if (newConsecutivePasses >= state.players.length) {
+    const winner = findWinnerByLowestTiles(state.players);
+    return {
+      ...state,
+      gamePhase: 'ended',
+      winner,
+      pointsPlayedThisTurn: 0,
+      consecutivePasses: newConsecutivePasses,
+    };
+  }
 
   return {
     ...state,
@@ -479,5 +520,6 @@ function endAITurn(state: GameState): GameState {
     boardBeforeTurn: [...state.board],
     rackBeforeTurn: [...state.players[nextPlayerIndex].tiles],
     pointsPlayedThisTurn: 0,
+    consecutivePasses: newConsecutivePasses,
   };
 }

@@ -36,6 +36,7 @@ export function createInitialGameState(): GameState {
     boardBeforeTurn: [],
     rackBeforeTurn: [],
     pointsPlayedThisTurn: 0,
+    consecutivePasses: 0,
   };
 }
 
@@ -279,7 +280,30 @@ export function commitAllStagedSets(state: GameState): GameState | { error: stri
   };
 }
 
-export function endTurn(state: GameState): GameState | { error: string } {
+function calculatePlayerTileTotal(player: Player): number {
+  return player.tiles.reduce((sum, tile) => {
+    // Jokers are worth 30 points when stuck in hand
+    if (tile.isJoker) return sum + 30;
+    return sum + tile.number;
+  }, 0);
+}
+
+function findWinnerByLowestTiles(players: Player[]): Player {
+  let winner = players[0];
+  let lowestTotal = calculatePlayerTileTotal(winner);
+
+  for (const player of players) {
+    const total = calculatePlayerTileTotal(player);
+    if (total < lowestTotal) {
+      lowestTotal = total;
+      winner = player;
+    }
+  }
+
+  return winner;
+}
+
+export function endTurn(state: GameState, drewTile: boolean = false): GameState | { error: string } {
   let currentState = state;
 
   // If there are staged sets, commit them first
@@ -316,7 +340,7 @@ export function endTurn(state: GameState): GameState | { error: string } {
     return player;
   });
 
-  // Check if current player won
+  // Check if current player won by emptying rack
   const updatedCurrentPlayer = updatedPlayers[currentState.currentPlayerIndex];
   if (updatedCurrentPlayer.tiles.length === 0) {
     return {
@@ -325,6 +349,24 @@ export function endTurn(state: GameState): GameState | { error: string } {
       gamePhase: 'ended',
       winner: updatedCurrentPlayer,
       pointsPlayedThisTurn: 0,
+      consecutivePasses: 0,
+    };
+  }
+
+  // Track consecutive passes (drawing or playing resets, only true pass increments)
+  const tookAction = currentState.pointsPlayedThisTurn > 0 || drewTile;
+  const newConsecutivePasses = tookAction ? 0 : currentState.consecutivePasses + 1;
+
+  // Check if all players have passed consecutively (game stalemate)
+  if (newConsecutivePasses >= currentState.players.length) {
+    const winner = findWinnerByLowestTiles(updatedPlayers);
+    return {
+      ...currentState,
+      players: updatedPlayers,
+      gamePhase: 'ended',
+      winner,
+      pointsPlayedThisTurn: 0,
+      consecutivePasses: newConsecutivePasses,
     };
   }
 
@@ -343,6 +385,7 @@ export function endTurn(state: GameState): GameState | { error: string } {
     boardBeforeTurn: [...currentState.board],
     rackBeforeTurn: [...updatedPlayers[nextPlayerIndex].tiles],
     pointsPlayedThisTurn: 0,
+    consecutivePasses: newConsecutivePasses,
   };
 }
 

@@ -46,4 +46,5 @@ export interface GameState {
   boardBeforeTurn: TileSet[];
   rackBeforeTurn: Tile[];
   pointsPlayedThisTurn: number;
+  consecutivePasses: number;
 }
