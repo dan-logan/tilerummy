@@ -12,6 +12,18 @@ export interface TileSet {
   tiles: Tile[];
 }
 
+export interface StagedSet {
+  id: string;
+  tiles: Tile[];
+  isValid: boolean;
+  type: 'run' | 'group' | 'invalid';
+  value: number;
+  sourceInfo: {
+    fromRack: string[];   // Tile IDs from rack
+    fromBoard: string[];  // Tile IDs from board
+  };
+}
+
 export interface Player {
   id: number;
   name: string;
@@ -27,7 +39,7 @@ export interface GameState {
   pool: Tile[];
   selectedTiles: Tile[];
   selectedBoardTiles: Tile[]; // Tiles selected from the board
-  stagingArea: Tile[];
+  stagedSets: StagedSet[];
   gamePhase: 'playing' | 'ended';
   winner: Player | null;
   turnState: 'selecting' | 'staging' | 'ai-thinking';

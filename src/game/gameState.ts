@@ -1,6 +1,6 @@
-import { GameState, Player, Tile, TileSet } from './types';
+import { GameState, Player, Tile, TileSet, StagedSet } from './types';
 import { createTilePool, shuffleTiles, dealTiles, sortTilesByColorAndNumber } from './tiles';
-import { isValidSet, calculateSetValue, validateBoard } from './validation';
+import { isValidSet, isValidRun, isValidGroup, calculateSetValue, validateBoard } from './validation';
 
 export function createInitialGameState(): GameState {
   const pool = shuffleTiles(createTilePool());
@@ -29,7 +29,7 @@ export function createInitialGameState(): GameState {
     pool: remainingPool,
     selectedTiles: [],
     selectedBoardTiles: [],
-    stagingArea: [],
+    stagedSets: [],
     gamePhase: 'playing',
     winner: null,
     turnState: 'selecting',
@@ -59,7 +59,7 @@ export function drawTile(state: GameState): GameState {
     players: updatedPlayers,
     pool: remainingPool,
     selectedTiles: [],
-    stagingArea: [],
+    stagedSets: [],
   };
 }
 
@@ -99,8 +99,32 @@ export function selectBoardTile(state: GameState, tile: Tile): GameState {
   };
 }
 
-export function moveToStaging(state: GameState): GameState {
+function determineStagedSetType(tiles: Tile[]): 'run' | 'group' | 'invalid' {
+  if (tiles.length < 3) return 'invalid';
+  if (isValidRun(tiles)) return 'run';
+  if (isValidGroup(tiles)) return 'group';
+  return 'invalid';
+}
+
+export function stageCurrentSelection(state: GameState): GameState {
   if (state.selectedTiles.length === 0 && state.selectedBoardTiles.length === 0) return state;
+
+  const allSelectedTiles = [...state.selectedTiles, ...state.selectedBoardTiles];
+  const valid = isValidSet(allSelectedTiles);
+  const setType = determineStagedSetType(allSelectedTiles);
+  const value = valid ? calculateSetValue(allSelectedTiles) : 0;
+
+  const newStagedSet: StagedSet = {
+    id: `staged-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    tiles: allSelectedTiles,
+    isValid: valid,
+    type: setType,
+    value,
+    sourceInfo: {
+      fromRack: state.selectedTiles.map(t => t.id),
+      fromBoard: state.selectedBoardTiles.map(t => t.id),
+    },
+  };
 
   // Remove selected tiles from player's rack
   const updatedPlayers = state.players.map((player, index) => {
@@ -128,77 +152,162 @@ export function moveToStaging(state: GameState): GameState {
     ...state,
     players: updatedPlayers,
     board: updatedBoard,
-    stagingArea: [...state.stagingArea, ...state.selectedTiles, ...state.selectedBoardTiles],
+    stagedSets: [...state.stagedSets, newStagedSet],
     selectedTiles: [],
     selectedBoardTiles: [],
     turnState: 'staging',
   };
 }
 
-export function playFromStaging(state: GameState): GameState | { error: string } {
-  if (state.stagingArea.length < 3) {
-    return { error: 'Need at least 3 tiles to form a set' };
-  }
+export function unstageSingleSet(state: GameState, setId: string): GameState {
+  const setToRemove = state.stagedSets.find(s => s.id === setId);
+  if (!setToRemove) return state;
 
-  if (!isValidSet(state.stagingArea)) {
-    return { error: 'Invalid set - must be a valid run or group' };
-  }
+  // Return tiles from rack back to rack
+  const rackTiles = setToRemove.tiles.filter(t =>
+    setToRemove.sourceInfo.fromRack.includes(t.id)
+  );
 
-  const setValue = calculateSetValue(state.stagingArea);
-
-  const newSet: TileSet = {
-    id: `set-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-    tiles: [...state.stagingArea],
-  };
-
-  return {
-    ...state,
-    board: [...state.board, newSet],
-    stagingArea: [],
-    turnState: 'selecting',
-    pointsPlayedThisTurn: state.pointsPlayedThisTurn + setValue,
-  };
-}
-
-export function returnStagingToRack(state: GameState): GameState {
-  if (state.stagingArea.length === 0) return state;
+  // Return tiles from board back to board as a new set (if any)
+  const boardTiles = setToRemove.tiles.filter(t =>
+    setToRemove.sourceInfo.fromBoard.includes(t.id)
+  );
 
   const updatedPlayers = state.players.map((player, index) => {
     if (index === state.currentPlayerIndex) {
       return {
         ...player,
-        tiles: sortTilesByColorAndNumber([...player.tiles, ...state.stagingArea]),
+        tiles: sortTilesByColorAndNumber([...player.tiles, ...rackTiles]),
       };
     }
     return player;
   });
 
+  // Add board tiles back as a set if there are any
+  let updatedBoard = state.board;
+  if (boardTiles.length > 0) {
+    const restoredSet: TileSet = {
+      id: `restored-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      tiles: boardTiles,
+    };
+    updatedBoard = [...state.board, restoredSet];
+  }
+
+  const remainingStagedSets = state.stagedSets.filter(s => s.id !== setId);
+
   return {
     ...state,
     players: updatedPlayers,
-    stagingArea: [],
+    board: updatedBoard,
+    stagedSets: remainingStagedSets,
+    turnState: remainingStagedSets.length > 0 ? 'staging' : 'selecting',
+  };
+}
+
+export function unstageAllSets(state: GameState): GameState {
+  if (state.stagedSets.length === 0) return state;
+
+  // Collect all rack tiles from all staged sets
+  const allRackTiles: Tile[] = [];
+  const allBoardTiles: Tile[] = [];
+
+  for (const stagedSet of state.stagedSets) {
+    for (const tile of stagedSet.tiles) {
+      if (stagedSet.sourceInfo.fromRack.includes(tile.id)) {
+        allRackTiles.push(tile);
+      } else if (stagedSet.sourceInfo.fromBoard.includes(tile.id)) {
+        allBoardTiles.push(tile);
+      }
+    }
+  }
+
+  const updatedPlayers = state.players.map((player, index) => {
+    if (index === state.currentPlayerIndex) {
+      return {
+        ...player,
+        tiles: sortTilesByColorAndNumber([...player.tiles, ...allRackTiles]),
+      };
+    }
+    return player;
+  });
+
+  // Add board tiles back as a set if there are any
+  let updatedBoard = state.board;
+  if (allBoardTiles.length > 0) {
+    const restoredSet: TileSet = {
+      id: `restored-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      tiles: allBoardTiles,
+    };
+    updatedBoard = [...state.board, restoredSet];
+  }
+
+  return {
+    ...state,
+    players: updatedPlayers,
+    board: updatedBoard,
+    stagedSets: [],
     turnState: 'selecting',
   };
 }
 
+export function commitAllStagedSets(state: GameState): GameState | { error: string } {
+  if (state.stagedSets.length === 0) {
+    return { error: 'No staged sets to commit' };
+  }
+
+  // Check if all staged sets are valid
+  const invalidSets = state.stagedSets.filter(s => !s.isValid);
+  if (invalidSets.length > 0) {
+    return { error: `Cannot commit: ${invalidSets.length} staged set(s) are invalid` };
+  }
+
+  // Calculate total value of all staged sets
+  const totalValue = state.stagedSets.reduce((sum, s) => sum + s.value, 0);
+
+  // Convert staged sets to board sets
+  const newBoardSets: TileSet[] = state.stagedSets.map(stagedSet => ({
+    id: `set-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    tiles: [...stagedSet.tiles],
+  }));
+
+  return {
+    ...state,
+    board: [...state.board, ...newBoardSets],
+    stagedSets: [],
+    turnState: 'selecting',
+    pointsPlayedThisTurn: state.pointsPlayedThisTurn + totalValue,
+  };
+}
+
 export function endTurn(state: GameState): GameState | { error: string } {
-  const currentPlayer = state.players[state.currentPlayerIndex];
+  let currentState = state;
+
+  // If there are staged sets, commit them first
+  if (state.stagedSets.length > 0) {
+    const commitResult = commitAllStagedSets(state);
+    if ('error' in commitResult) {
+      return commitResult;
+    }
+    currentState = commitResult;
+  }
+
+  const currentPlayer = currentState.players[currentState.currentPlayerIndex];
 
   // Validate entire board - all sets must be valid
-  if (!validateBoard(state.board)) {
+  if (!validateBoard(currentState.board)) {
     return { error: 'Invalid board state - all sets must be valid runs or groups with at least 3 tiles. Cancel to undo changes.' };
   }
 
   // Check initial meld requirement - must have played 30+ points this turn
-  if (!currentPlayer.hasPlayedInitialMeld && state.pointsPlayedThisTurn > 0) {
-    if (state.pointsPlayedThisTurn < 30) {
-      return { error: `Initial meld must total at least 30 points. You've played ${state.pointsPlayedThisTurn} points. Play more sets or cancel.` };
+  if (!currentPlayer.hasPlayedInitialMeld && currentState.pointsPlayedThisTurn > 0) {
+    if (currentState.pointsPlayedThisTurn < 30) {
+      return { error: `Initial meld must total at least 30 points. You've played ${currentState.pointsPlayedThisTurn} points. Play more sets or cancel.` };
     }
   }
 
   // Update player's initial meld status if they played enough
-  const updatedPlayers = state.players.map((player, index) => {
-    if (index === state.currentPlayerIndex && state.pointsPlayedThisTurn >= 30) {
+  const updatedPlayers = currentState.players.map((player, index) => {
+    if (index === currentState.currentPlayerIndex && currentState.pointsPlayedThisTurn >= 30) {
       return {
         ...player,
         hasPlayedInitialMeld: true,
@@ -208,10 +317,10 @@ export function endTurn(state: GameState): GameState | { error: string } {
   });
 
   // Check if current player won
-  const updatedCurrentPlayer = updatedPlayers[state.currentPlayerIndex];
+  const updatedCurrentPlayer = updatedPlayers[currentState.currentPlayerIndex];
   if (updatedCurrentPlayer.tiles.length === 0) {
     return {
-      ...state,
+      ...currentState,
       players: updatedPlayers,
       gamePhase: 'ended',
       winner: updatedCurrentPlayer,
@@ -220,18 +329,18 @@ export function endTurn(state: GameState): GameState | { error: string } {
   }
 
   // Move to next player
-  const nextPlayerIndex = (state.currentPlayerIndex + 1) % state.players.length;
+  const nextPlayerIndex = (currentState.currentPlayerIndex + 1) % currentState.players.length;
   const nextPlayer = updatedPlayers[nextPlayerIndex];
 
   return {
-    ...state,
+    ...currentState,
     players: updatedPlayers,
     currentPlayerIndex: nextPlayerIndex,
     selectedTiles: [],
     selectedBoardTiles: [],
-    stagingArea: [],
+    stagedSets: [],
     turnState: nextPlayer.isAI ? 'ai-thinking' : 'selecting',
-    boardBeforeTurn: [...state.board],
+    boardBeforeTurn: [...currentState.board],
     rackBeforeTurn: [...updatedPlayers[nextPlayerIndex].tiles],
     pointsPlayedThisTurn: 0,
   };
@@ -253,7 +362,7 @@ export function cancelTurn(state: GameState): GameState {
     ...state,
     players: updatedPlayers,
     board: [...state.boardBeforeTurn],
-    stagingArea: [],
+    stagedSets: [],
     selectedTiles: [],
     selectedBoardTiles: [],
     turnState: 'selecting',
@@ -267,6 +376,7 @@ export function startTurn(state: GameState): GameState {
     ...state,
     boardBeforeTurn: [...state.board],
     rackBeforeTurn: [...currentPlayer.tiles],
+    stagedSets: [],
     turnState: currentPlayer.isAI ? 'ai-thinking' : 'selecting',
     pointsPlayedThisTurn: 0,
   };

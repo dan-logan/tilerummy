@@ -1,27 +1,25 @@
 interface ControlsProps {
   canDraw: boolean;
-  canPlay: boolean;
   canEndTurn: boolean;
-  hasStaging: boolean;
+  hasStagedSets: boolean;
+  allStagedValid: boolean;
   hasSelected: boolean;
   onDraw: () => void;
-  onMoveToStaging: () => void;
-  onPlay: () => void;
-  onCancel: () => void;
+  onStage: () => void;
+  onCancelAll: () => void;
   onEndTurn: () => void;
   disabled: boolean;
 }
 
 export default function Controls({
   canDraw,
-  canPlay,
   canEndTurn,
-  hasStaging,
+  hasStagedSets,
+  allStagedValid,
   hasSelected,
   onDraw,
-  onMoveToStaging,
-  onPlay,
-  onCancel,
+  onStage,
+  onCancelAll,
   onEndTurn,
   disabled,
 }: ControlsProps) {
@@ -30,31 +28,31 @@ export default function Controls({
       {hasSelected && (
         <button
           className="end-turn-btn"
-          onClick={onMoveToStaging}
+          onClick={onStage}
           disabled={disabled}
         >
           Stage
         </button>
       )}
-      {hasStaging && (
+      {hasStagedSets && (
         <>
           <button
             className="end-turn-btn"
-            onClick={onPlay}
-            disabled={disabled || !canPlay}
+            onClick={onEndTurn}
+            disabled={disabled || !allStagedValid}
           >
-            Play Set
+            End Turn
           </button>
           <button
             className="cancel-btn"
-            onClick={onCancel}
+            onClick={onCancelAll}
             disabled={disabled}
           >
-            Cancel
+            Cancel All
           </button>
         </>
       )}
-      {!hasStaging && !hasSelected && (
+      {!hasStagedSets && !hasSelected && (
         <>
           <button
             className="draw-btn"

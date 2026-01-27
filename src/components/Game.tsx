@@ -5,19 +5,18 @@ import {
   drawTile,
   selectTile,
   selectBoardTile,
-  moveToStaging,
-  playFromStaging,
-  returnStagingToRack,
+  stageCurrentSelection,
+  unstageSingleSet,
   endTurn,
   startTurn,
+  cancelTurn,
 } from '../game/gameState';
-import { isValidSet, calculateSetValue } from '../game/validation';
 import { executeAITurn } from '../game/ai';
 import Board from './Board';
 import Rack from './Rack';
-import Tile from './Tile';
 import Controls from './Controls';
 import GameStatus from './GameStatus';
+import StagedSetsPanel from './StagedSetsPanel';
 
 export default function Game() {
   const [gameState, setGameState] = useState<GameState>(() => {
@@ -65,28 +64,22 @@ export default function Game() {
     setGameState(prev => selectBoardTile(prev, tile));
   }, [isPlayerTurn, humanPlayer.hasPlayedInitialMeld]);
 
-  const handleMoveToStaging = useCallback(() => {
+  const handleStage = useCallback(() => {
     if (!isPlayerTurn) return;
     setError(null);
-    setGameState(prev => moveToStaging(prev));
+    setGameState(prev => stageCurrentSelection(prev));
   }, [isPlayerTurn]);
 
-  const handlePlay = useCallback(() => {
+  const handleUnstage = useCallback((setId: string) => {
     if (!isPlayerTurn) return;
     setError(null);
+    setGameState(prev => unstageSingleSet(prev, setId));
+  }, [isPlayerTurn]);
 
-    const result = playFromStaging(gameState);
-    if ('error' in result) {
-      setError(result.error);
-      return;
-    }
-    setGameState(result);
-  }, [isPlayerTurn, gameState]);
-
-  const handleCancel = useCallback(() => {
+  const handleCancelAll = useCallback(() => {
     if (!isPlayerTurn) return;
     setError(null);
-    setGameState(prev => returnStagingToRack(prev));
+    setGameState(prev => cancelTurn(prev));
   }, [isPlayerTurn]);
 
   const handleDraw = useCallback(() => {
@@ -107,12 +100,6 @@ export default function Game() {
     if (!isPlayerTurn) return;
     setError(null);
 
-    // Can only end turn if no staging tiles
-    if (gameState.stagingArea.length > 0) {
-      setError('Must play or cancel staged tiles before ending turn');
-      return;
-    }
-
     const result = endTurn(gameState);
     if ('error' in result) {
       setError(result.error);
@@ -127,14 +114,12 @@ export default function Game() {
     setGameState(startTurn(initial));
   }, []);
 
-  const stagingValue = gameState.stagingArea.length >= 3
-    ? calculateSetValue(gameState.stagingArea)
-    : 0;
-  const stagingValid = gameState.stagingArea.length >= 3 && isValidSet(gameState.stagingArea);
-
   const needsInitialMeld = !humanPlayer.hasPlayedInitialMeld;
+  const hasStagedSets = gameState.stagedSets.length > 0;
+  const allStagedValid = gameState.stagedSets.every(s => s.isValid);
+  const totalStagedPoints = gameState.stagedSets.reduce((sum, s) => sum + s.value, 0);
   const madePlayThisTurn = gameState.board.length > gameState.boardBeforeTurn.length ||
-    gameState.pointsPlayedThisTurn > 0;
+    gameState.pointsPlayedThisTurn > 0 || hasStagedSets;
   const hasSelectedAny = gameState.selectedTiles.length > 0 || gameState.selectedBoardTiles.length > 0;
 
   return (
@@ -152,7 +137,8 @@ export default function Game() {
       {needsInitialMeld && isPlayerTurn && gameState.gamePhase === 'playing' && (
         <div className="initial-meld-warning">
           First play must total at least 30 points
-          {gameState.pointsPlayedThisTurn > 0 && ` (played: ${gameState.pointsPlayedThisTurn})`}
+          {(gameState.pointsPlayedThisTurn > 0 || totalStagedPoints > 0) &&
+            ` (staged: ${totalStagedPoints + gameState.pointsPlayedThisTurn})`}
         </div>
       )}
 
@@ -169,18 +155,11 @@ export default function Game() {
         canSelect={humanPlayer.hasPlayedInitialMeld && isPlayerTurn}
       />
 
-      {gameState.stagingArea.length > 0 && (
-        <div className="staging-area">
-          <div className="staging-label">
-            Staging ({stagingValid ? `Valid - ${stagingValue} points` : 'Invalid'})
-          </div>
-          <div className="staging-tiles">
-            {gameState.stagingArea.map(tile => (
-              <Tile key={tile.id} tile={tile} draggable={false} />
-            ))}
-          </div>
-        </div>
-      )}
+      <StagedSetsPanel
+        stagedSets={gameState.stagedSets}
+        onUnstage={handleUnstage}
+        disabled={!isPlayerTurn}
+      />
 
       <Rack
         tiles={humanPlayer.tiles}
@@ -190,14 +169,13 @@ export default function Game() {
 
       <Controls
         canDraw={gameState.pool.length > 0 && !madePlayThisTurn}
-        canPlay={stagingValid}
-        canEndTurn={gameState.stagingArea.length === 0 && madePlayThisTurn}
-        hasStaging={gameState.stagingArea.length > 0}
+        canEndTurn={madePlayThisTurn && !hasStagedSets}
+        hasStagedSets={hasStagedSets}
+        allStagedValid={allStagedValid}
         hasSelected={hasSelectedAny}
         onDraw={handleDraw}
-        onMoveToStaging={handleMoveToStaging}
-        onPlay={handlePlay}
-        onCancel={handleCancel}
+        onStage={handleStage}
+        onCancelAll={handleCancelAll}
         onEndTurn={handleEndTurn}
         disabled={!isPlayerTurn || gameState.gamePhase === 'ended'}
       />

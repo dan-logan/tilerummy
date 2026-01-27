@@ -474,7 +474,7 @@ function endAITurn(state: GameState): GameState {
     currentPlayerIndex: nextPlayerIndex,
     selectedTiles: [],
     selectedBoardTiles: [],
-    stagingArea: [],
+    stagedSets: [],
     turnState: nextPlayer.isAI ? 'ai-thinking' : 'selecting',
     boardBeforeTurn: [...state.board],
     rackBeforeTurn: [...state.players[nextPlayerIndex].tiles],
