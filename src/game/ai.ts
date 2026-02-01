@@ -141,8 +141,8 @@ function tryFormRun(baseTiles: Tile[], availableJokers: Tile[]): PossiblePlay[] 
     jokersForGaps += gap;
   }
 
-  // Try with different joker counts
-  for (let jokerCount = 0; jokerCount <= Math.min(availableJokers.length, 2); jokerCount++) {
+  // Try with different joker counts (up to all available jokers)
+  for (let jokerCount = 0; jokerCount <= availableJokers.length; jokerCount++) {
     const jokersUsed = availableJokers.slice(0, jokerCount);
     const jokersToExtend = jokerCount - jokersForGaps;
 
@@ -185,7 +185,7 @@ function findPossibleGroups(tiles: Tile[]): PossiblePlay[] {
 
   // For each number, try to form groups
   for (const [, sameTiles] of byNumber) {
-    // Get unique colors
+    // Get unique colors (one tile per color)
     const uniqueByColor: Tile[] = [];
     const seenColors = new Set<string>();
 
@@ -196,45 +196,63 @@ function findPossibleGroups(tiles: Tile[]): PossiblePlay[] {
       }
     }
 
-    // Try groups of 3 and 4
-    if (uniqueByColor.length >= 3) {
-      // Group of 3
-      const group3 = uniqueByColor.slice(0, 3);
-      if (isValidGroup(group3)) {
+    // Generate all combinations of 3 and 4 tiles from unique colors
+    const combinations3 = getCombinations(uniqueByColor, 3);
+    const combinations4 = getCombinations(uniqueByColor, 4);
+
+    for (const combo of [...combinations3, ...combinations4]) {
+      if (isValidGroup(combo)) {
         plays.push({
-          tiles: group3,
-          value: calculateSetValue(group3),
+          tiles: combo,
+          value: calculateSetValue(combo),
           type: 'group',
         });
-      }
-
-      // Group of 4
-      if (uniqueByColor.length >= 4) {
-        const group4 = uniqueByColor.slice(0, 4);
-        if (isValidGroup(group4)) {
-          plays.push({
-            tiles: group4,
-            value: calculateSetValue(group4),
-            type: 'group',
-          });
-        }
       }
     }
 
-    // Try with jokers
-    if (uniqueByColor.length >= 2 && jokers.length >= 1) {
-      const groupWithJoker = [...uniqueByColor.slice(0, 2), jokers[0]];
-      if (isValidGroup(groupWithJoker)) {
-        plays.push({
-          tiles: groupWithJoker,
-          value: calculateSetValue(groupWithJoker),
-          type: 'group',
-        });
+    // Try with jokers - all combinations of regular tiles + jokers totaling 3 or 4
+    for (let numRegular = 1; numRegular <= uniqueByColor.length; numRegular++) {
+      const regularCombos = getCombinations(uniqueByColor, numRegular);
+
+      for (const regularCombo of regularCombos) {
+        // Try adding jokers to make groups of size 3 or 4
+        for (let numJokers = 1; numJokers <= Math.min(jokers.length, 3); numJokers++) {
+          const totalSize = numRegular + numJokers;
+          if (totalSize >= 3 && totalSize <= 4) {
+            const groupWithJokers = [...regularCombo, ...jokers.slice(0, numJokers)];
+            if (isValidGroup(groupWithJokers)) {
+              plays.push({
+                tiles: groupWithJokers,
+                value: calculateSetValue(groupWithJokers),
+                type: 'group',
+              });
+            }
+          }
+        }
       }
     }
   }
 
   return plays;
+}
+
+// Helper function to get all combinations of size k from an array
+function getCombinations<T>(arr: T[], k: number): T[][] {
+  if (k > arr.length || k <= 0) return [];
+  if (k === arr.length) return [arr];
+  if (k === 1) return arr.map(item => [item]);
+
+  const result: T[][] = [];
+
+  for (let i = 0; i <= arr.length - k; i++) {
+    const head = arr[i];
+    const tailCombos = getCombinations(arr.slice(i + 1), k - 1);
+    for (const tailCombo of tailCombos) {
+      result.push([head, ...tailCombo]);
+    }
+  }
+
+  return result;
 }
 
 export function executeAITurn(state: GameState): GameState {
