@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { Tile as TileType } from '../game/types';
 
 interface TileProps {
@@ -17,8 +18,23 @@ export default function Tile({
   onDragStart,
   onDragEnd,
 }: TileProps) {
-  const handleTouchStart = () => {
+  const touchHandled = useRef(false);
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    e.preventDefault();
+    touchHandled.current = true;
     if (onClick) {
+      onClick();
+    }
+    // Reset after a short delay to allow for next interaction
+    setTimeout(() => {
+      touchHandled.current = false;
+    }, 100);
+  };
+
+  const handleClick = () => {
+    // Only fire if not already handled by touch
+    if (!touchHandled.current && onClick) {
       onClick();
     }
   };
@@ -26,8 +42,8 @@ export default function Tile({
   return (
     <div
       className={`tile ${tile.color} ${selected ? 'selected' : ''} ${tile.isJoker ? 'joker' : ''}`}
-      onClick={onClick}
-      onTouchStart={handleTouchStart}
+      onClick={handleClick}
+      onTouchEnd={handleTouchEnd}
       draggable={draggable}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}

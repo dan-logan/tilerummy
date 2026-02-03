@@ -165,12 +165,16 @@ body {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
   flex-shrink: 0;
   transition: transform 0.1s, box-shadow 0.1s;
+  /* Improve touch handling */
+  touch-action: manipulation;
+  -webkit-user-select: none;
 }
 
 .tile:active {
   cursor: grabbing;
   transform: scale(1.05);
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+  background: linear-gradient(145deg, #e8e8e0 0%, #d8d8d0 100%);
 }
 
 .tile.dragging {
@@ -207,11 +211,17 @@ body {
   border: none;
   border-radius: 8px;
   cursor: pointer;
-  transition: transform 0.1s, opacity 0.1s;
+  transition: transform 0.1s, opacity 0.1s, background 0.1s;
+  /* Improve touch handling */
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  min-height: 44px; /* Minimum touch target size */
 }
 
-.controls button:active {
+.controls button:active:not(:disabled) {
   transform: scale(0.95);
+  filter: brightness(0.9);
 }
 
 .controls button:disabled {
@@ -319,17 +329,27 @@ body {
 }
 
 .unstage-btn {
-  padding: 4px 8px;
-  font-size: 11px;
+  padding: 8px 12px;
+  font-size: 12px;
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: 4px;
   color: white;
   cursor: pointer;
+  /* Improve touch handling */
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  min-height: 36px; /* Minimum touch target size */
 }
 
 .unstage-btn:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.2);
+}
+
+.unstage-btn:active:not(:disabled) {
+  background: rgba(255, 255, 255, 0.3);
+  transform: scale(0.95);
 }
 
 .unstage-btn:disabled {

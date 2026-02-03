@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { StagedSet } from '../game/types';
 import Tile from './Tile';
 
@@ -12,10 +13,27 @@ export default function StagedSetsPanel({
   onUnstage,
   disabled = false,
 }: StagedSetsPanelProps) {
+  const touchHandled = useRef<string | null>(null);
+
   if (stagedSets.length === 0) return null;
 
   const totalPoints = stagedSets.reduce((sum, s) => sum + s.value, 0);
   const allValid = stagedSets.every(s => s.isValid);
+
+  const handleTouchEnd = (e: React.TouchEvent, setId: string) => {
+    if (disabled) return;
+    e.preventDefault();
+    touchHandled.current = setId;
+    onUnstage(setId);
+    setTimeout(() => {
+      touchHandled.current = null;
+    }, 100);
+  };
+
+  const handleClick = (setId: string) => {
+    if (disabled || touchHandled.current === setId) return;
+    onUnstage(setId);
+  };
 
   return (
     <div className="staged-sets-panel">
@@ -42,7 +60,8 @@ export default function StagedSetsPanel({
               </span>
               <button
                 className="unstage-btn"
-                onClick={() => onUnstage(stagedSet.id)}
+                onClick={() => handleClick(stagedSet.id)}
+                onTouchEnd={(e) => handleTouchEnd(e, stagedSet.id)}
                 disabled={disabled}
               >
                 Unstage
