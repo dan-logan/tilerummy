@@ -21,45 +21,40 @@ interface TouchButtonProps {
 }
 
 function TouchButton({ className, onClick, disabled, children }: TouchButtonProps) {
-  const touchStartPos = useRef<{ x: number; y: number } | null>(null);
-  const touchHandled = useRef(false);
+  const pointerStartPos = useRef<{ x: number; y: number } | null>(null);
+  const wasHandled = useRef(false);
 
-  const handleTouchStart = (e: React.TouchEvent) => {
-    const touch = e.touches[0];
-    touchStartPos.current = { x: touch.clientX, y: touch.clientY };
+  const handlePointerDown = (e: React.PointerEvent) => {
+    pointerStartPos.current = { x: e.clientX, y: e.clientY };
+    wasHandled.current = false;
   };
 
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    if (disabled || !touchStartPos.current) return;
+  const handlePointerUp = (e: React.PointerEvent) => {
+    if (disabled || !pointerStartPos.current || wasHandled.current) return;
 
-    const touch = e.changedTouches[0];
-    const dx = Math.abs(touch.clientX - touchStartPos.current.x);
-    const dy = Math.abs(touch.clientY - touchStartPos.current.y);
+    const dx = Math.abs(e.clientX - pointerStartPos.current.x);
+    const dy = Math.abs(e.clientY - pointerStartPos.current.y);
 
-    // If finger moved less than 10px, treat as tap
-    if (dx < 10 && dy < 10) {
-      e.preventDefault();
-      touchHandled.current = true;
+    // If pointer moved less than 15px, treat as tap/click
+    if (dx < 15 && dy < 15) {
+      wasHandled.current = true;
       onClick();
-      setTimeout(() => {
-        touchHandled.current = false;
-      }, 100);
     }
 
-    touchStartPos.current = null;
+    pointerStartPos.current = null;
   };
 
-  const handleClick = () => {
-    if (disabled || touchHandled.current) return;
-    onClick();
+  // Prevent default click to avoid double-firing
+  const handleClick = (e: React.MouseEvent) => {
+    e.preventDefault();
   };
 
   return (
     <button
       className={className}
       onClick={handleClick}
-      onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
       disabled={disabled}
     >
       {children}

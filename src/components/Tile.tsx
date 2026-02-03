@@ -22,44 +22,35 @@ export default function Tile({
   onDragStart,
   onDragEnd,
 }: TileProps) {
-  const touchStartPos = useRef<{ x: number; y: number } | null>(null);
-  const touchHandled = useRef(false);
+  const pointerStartPos = useRef<{ x: number; y: number } | null>(null);
+  const wasHandled = useRef(false);
 
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    // Record starting position to detect if it's a tap vs scroll
-    const touch = e.touches[0];
-    touchStartPos.current = { x: touch.clientX, y: touch.clientY };
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    pointerStartPos.current = { x: e.clientX, y: e.clientY };
+    wasHandled.current = false;
   }, []);
 
-  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
-    if (!touchStartPos.current) return;
+  const handlePointerUp = useCallback((e: React.PointerEvent) => {
+    if (!pointerStartPos.current || wasHandled.current) return;
 
-    // Check if finger moved too much (would be a scroll, not a tap)
-    const touch = e.changedTouches[0];
-    const dx = Math.abs(touch.clientX - touchStartPos.current.x);
-    const dy = Math.abs(touch.clientY - touchStartPos.current.y);
+    const dx = Math.abs(e.clientX - pointerStartPos.current.x);
+    const dy = Math.abs(e.clientY - pointerStartPos.current.y);
 
-    // If finger moved less than 10px, treat as tap
-    if (dx < 10 && dy < 10) {
-      e.preventDefault();
-      touchHandled.current = true;
+    // If pointer moved less than 15px, treat as tap/click
+    if (dx < 15 && dy < 15) {
+      wasHandled.current = true;
       if (onClick) {
         onClick();
       }
-      setTimeout(() => {
-        touchHandled.current = false;
-      }, 100);
     }
 
-    touchStartPos.current = null;
+    pointerStartPos.current = null;
   }, [onClick]);
 
-  const handleClick = useCallback(() => {
-    // Only fire if not already handled by touch
-    if (!touchHandled.current && onClick) {
-      onClick();
-    }
-  }, [onClick]);
+  // Prevent default click to avoid double-firing
+  const handleClick = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+  }, []);
 
   // Disable draggable on touch devices as it interferes with touch events
   const canDrag = draggable && !isTouchDevice();
@@ -68,8 +59,8 @@ export default function Tile({
     <div
       className={`tile ${tile.color} ${selected ? 'selected' : ''} ${tile.isJoker ? 'joker' : ''}`}
       onClick={handleClick}
-      onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
       draggable={canDrag}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
