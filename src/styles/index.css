@@ -133,6 +133,8 @@ body {
   padding: 8px 4px;
   min-height: 70px;
   -webkit-overflow-scrolling: touch;
+  /* Allow tiles to receive touch events */
+  touch-action: pan-x;
 }
 
 .rack::-webkit-scrollbar {
