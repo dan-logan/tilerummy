@@ -8,32 +8,67 @@ interface StagedSetsPanelProps {
   disabled?: boolean;
 }
 
+interface UnstageButtonProps {
+  setId: string;
+  onUnstage: (setId: string) => void;
+  disabled: boolean;
+}
+
+function UnstageButton({ setId, onUnstage, disabled }: UnstageButtonProps) {
+  const touchStartPos = useRef<{ x: number; y: number } | null>(null);
+  const touchHandled = useRef(false);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    const touch = e.touches[0];
+    touchStartPos.current = { x: touch.clientX, y: touch.clientY };
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (disabled || !touchStartPos.current) return;
+
+    const touch = e.changedTouches[0];
+    const dx = Math.abs(touch.clientX - touchStartPos.current.x);
+    const dy = Math.abs(touch.clientY - touchStartPos.current.y);
+
+    if (dx < 10 && dy < 10) {
+      e.preventDefault();
+      touchHandled.current = true;
+      onUnstage(setId);
+      setTimeout(() => {
+        touchHandled.current = false;
+      }, 100);
+    }
+
+    touchStartPos.current = null;
+  };
+
+  const handleClick = () => {
+    if (disabled || touchHandled.current) return;
+    onUnstage(setId);
+  };
+
+  return (
+    <button
+      className="unstage-btn"
+      onClick={handleClick}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      disabled={disabled}
+    >
+      Unstage
+    </button>
+  );
+}
+
 export default function StagedSetsPanel({
   stagedSets,
   onUnstage,
   disabled = false,
 }: StagedSetsPanelProps) {
-  const touchHandled = useRef<string | null>(null);
-
   if (stagedSets.length === 0) return null;
 
   const totalPoints = stagedSets.reduce((sum, s) => sum + s.value, 0);
   const allValid = stagedSets.every(s => s.isValid);
-
-  const handleTouchEnd = (e: React.TouchEvent, setId: string) => {
-    if (disabled) return;
-    e.preventDefault();
-    touchHandled.current = setId;
-    onUnstage(setId);
-    setTimeout(() => {
-      touchHandled.current = null;
-    }, 100);
-  };
-
-  const handleClick = (setId: string) => {
-    if (disabled || touchHandled.current === setId) return;
-    onUnstage(setId);
-  };
 
   return (
     <div className="staged-sets-panel">
@@ -58,14 +93,11 @@ export default function StagedSetsPanel({
                   ? ` - ${stagedSet.type} (${stagedSet.value} pts)`
                   : ' - Invalid'}
               </span>
-              <button
-                className="unstage-btn"
-                onClick={() => handleClick(stagedSet.id)}
-                onTouchEnd={(e) => handleTouchEnd(e, stagedSet.id)}
+              <UnstageButton
+                setId={stagedSet.id}
+                onUnstage={onUnstage}
                 disabled={disabled}
-              >
-                Unstage
-              </button>
+              />
             </div>
             <div className="staged-set-tiles">
               {stagedSet.tiles.map(tile => (

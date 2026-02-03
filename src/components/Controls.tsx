@@ -1,4 +1,4 @@
-import { useRef, useCallback } from 'react';
+import { useRef } from 'react';
 
 interface ControlsProps {
   canDraw: boolean;
@@ -13,26 +13,58 @@ interface ControlsProps {
   disabled: boolean;
 }
 
-// Hook to handle both touch and click without double-firing
-function useTouchClick(handler: () => void, isDisabled: boolean) {
+interface TouchButtonProps {
+  className: string;
+  onClick: () => void;
+  disabled: boolean;
+  children: React.ReactNode;
+}
+
+function TouchButton({ className, onClick, disabled, children }: TouchButtonProps) {
+  const touchStartPos = useRef<{ x: number; y: number } | null>(null);
   const touchHandled = useRef(false);
 
-  const onTouchEnd = useCallback((e: React.TouchEvent) => {
-    if (isDisabled) return;
-    e.preventDefault();
-    touchHandled.current = true;
-    handler();
-    setTimeout(() => {
-      touchHandled.current = false;
-    }, 100);
-  }, [handler, isDisabled]);
+  const handleTouchStart = (e: React.TouchEvent) => {
+    const touch = e.touches[0];
+    touchStartPos.current = { x: touch.clientX, y: touch.clientY };
+  };
 
-  const onClick = useCallback(() => {
-    if (isDisabled || touchHandled.current) return;
-    handler();
-  }, [handler, isDisabled]);
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (disabled || !touchStartPos.current) return;
 
-  return { onTouchEnd, onClick };
+    const touch = e.changedTouches[0];
+    const dx = Math.abs(touch.clientX - touchStartPos.current.x);
+    const dy = Math.abs(touch.clientY - touchStartPos.current.y);
+
+    // If finger moved less than 10px, treat as tap
+    if (dx < 10 && dy < 10) {
+      e.preventDefault();
+      touchHandled.current = true;
+      onClick();
+      setTimeout(() => {
+        touchHandled.current = false;
+      }, 100);
+    }
+
+    touchStartPos.current = null;
+  };
+
+  const handleClick = () => {
+    if (disabled || touchHandled.current) return;
+    onClick();
+  };
+
+  return (
+    <button
+      className={className}
+      onClick={handleClick}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      disabled={disabled}
+    >
+      {children}
+    </button>
+  );
 }
 
 export default function Controls({
@@ -47,62 +79,51 @@ export default function Controls({
   onEndTurn,
   disabled,
 }: ControlsProps) {
-  const stageHandlers = useTouchClick(onStage, disabled);
-  const endTurnStagedHandlers = useTouchClick(onEndTurn, disabled || !allStagedValid);
-  const cancelHandlers = useTouchClick(onCancelAll, disabled);
-  const drawHandlers = useTouchClick(onDraw, disabled || !canDraw);
-  const endTurnHandlers = useTouchClick(onEndTurn, disabled || !canEndTurn);
-
   return (
     <div className="controls">
       {hasSelected && (
-        <button
+        <TouchButton
           className="end-turn-btn"
-          onClick={stageHandlers.onClick}
-          onTouchEnd={stageHandlers.onTouchEnd}
+          onClick={onStage}
           disabled={disabled}
         >
           Stage
-        </button>
+        </TouchButton>
       )}
       {hasStagedSets && (
         <>
-          <button
+          <TouchButton
             className="end-turn-btn"
-            onClick={endTurnStagedHandlers.onClick}
-            onTouchEnd={endTurnStagedHandlers.onTouchEnd}
+            onClick={onEndTurn}
             disabled={disabled || !allStagedValid}
           >
             End Turn
-          </button>
-          <button
+          </TouchButton>
+          <TouchButton
             className="cancel-btn"
-            onClick={cancelHandlers.onClick}
-            onTouchEnd={cancelHandlers.onTouchEnd}
+            onClick={onCancelAll}
             disabled={disabled}
           >
             Cancel All
-          </button>
+          </TouchButton>
         </>
       )}
       {!hasStagedSets && !hasSelected && (
         <>
-          <button
+          <TouchButton
             className="draw-btn"
-            onClick={drawHandlers.onClick}
-            onTouchEnd={drawHandlers.onTouchEnd}
+            onClick={onDraw}
             disabled={disabled || !canDraw}
           >
             Draw Tile
-          </button>
-          <button
+          </TouchButton>
+          <TouchButton
             className="end-turn-btn"
-            onClick={endTurnHandlers.onClick}
-            onTouchEnd={endTurnHandlers.onTouchEnd}
+            onClick={onEndTurn}
             disabled={disabled || !canEndTurn}
           >
             End Turn
-          </button>
+          </TouchButton>
         </>
       )}
     </div>
