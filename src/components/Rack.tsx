@@ -4,12 +4,14 @@ import Tile from './Tile';
 interface RackProps {
   tiles: TileType[];
   selectedTiles: TileType[];
+  lastDrawnTileId: string | null;
   onTileClick: (tile: TileType) => void;
 }
 
-export default function Rack({ tiles, selectedTiles, onTileClick }: RackProps) {
+export default function Rack({ tiles, selectedTiles, lastDrawnTileId, onTileClick }: RackProps) {
   const isSelected = (tile: TileType) =>
     selectedTiles.some(t => t.id === tile.id);
+  const isLastDrawn = (tile: TileType) => tile.id === lastDrawnTileId;
 
   return (
     <div className="rack-container">
@@ -20,6 +22,7 @@ export default function Rack({ tiles, selectedTiles, onTileClick }: RackProps) {
             key={tile.id}
             tile={tile}
             selected={isSelected(tile)}
+            highlighted={isLastDrawn(tile)}
             onClick={() => onTileClick(tile)}
           />
         ))}

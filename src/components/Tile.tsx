@@ -4,6 +4,7 @@ import { Tile as TileType } from '../game/types';
 interface TileProps {
   tile: TileType;
   selected?: boolean;
+  highlighted?: boolean;
   onClick?: () => void;
   draggable?: boolean;
   onDragStart?: (e: React.DragEvent) => void;
@@ -17,6 +18,7 @@ const isTouchDevice = () =>
 export default function Tile({
   tile,
   selected = false,
+  highlighted = false,
   onClick,
   draggable = true,
   onDragStart,
@@ -70,7 +72,7 @@ export default function Tile({
 
   return (
     <div
-      className={`tile ${tile.color} ${selected ? 'selected' : ''} ${tile.isJoker ? 'joker' : ''}`}
+      className={`tile ${tile.color} ${selected ? 'selected' : ''} ${tile.isJoker ? 'joker' : ''} ${highlighted ? 'last-drawn' : ''}`}
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerCancel}

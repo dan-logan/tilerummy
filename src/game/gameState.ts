@@ -37,6 +37,7 @@ export function createInitialGameState(): GameState {
     rackBeforeTurn: [],
     pointsPlayedThisTurn: 0,
     consecutivePasses: 0,
+    lastDrawnTileId: null,
   };
 }
 
@@ -61,6 +62,7 @@ export function drawTile(state: GameState): GameState {
     pool: remainingPool,
     selectedTiles: [],
     stagedSets: [],
+    lastDrawnTileId: state.currentPlayerIndex === 0 ? drawnTile.id : state.lastDrawnTileId,
   };
 }
 

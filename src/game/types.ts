@@ -47,4 +47,5 @@ export interface GameState {
   rackBeforeTurn: Tile[];
   pointsPlayedThisTurn: number;
   consecutivePasses: number;
+  lastDrawnTileId: string | null;
 }

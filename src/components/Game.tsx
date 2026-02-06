@@ -173,6 +173,7 @@ export default function Game() {
       <Rack
         tiles={humanPlayer.tiles}
         selectedTiles={gameState.selectedTiles}
+        lastDrawnTileId={gameState.lastDrawnTileId}
         onTileClick={handleTileClick}
       />
 
