@@ -12,6 +12,7 @@ import {
   cancelTurn,
 } from '../game/gameState';
 import { executeAITurn } from '../game/ai';
+import { isValidSet } from '../game/validation';
 import Board from './Board';
 import Rack from './Rack';
 import Controls from './Controls';
@@ -66,8 +67,16 @@ export default function Game() {
 
   const handleStage = useCallback(() => {
     if (!isPlayerTurn) return;
-    setError(null);
-    setGameState(prev => stageCurrentSelection(prev));
+    setGameState(prev => {
+      const allSelected = [...prev.selectedTiles, ...prev.selectedBoardTiles];
+      if (allSelected.length === 0) return prev;
+      if (!isValidSet(allSelected)) {
+        setError('Selected tiles must form a valid run or group (same number, different colors).');
+        return prev;
+      }
+      setError(null);
+      return stageCurrentSelection(prev);
+    });
   }, [isPlayerTurn]);
 
   const handleUnstage = useCallback((setId: string) => {

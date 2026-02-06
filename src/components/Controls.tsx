@@ -93,51 +93,34 @@ export default function Controls({
 }: ControlsProps) {
   return (
     <div className="controls">
-      {hasSelected && (
-        <JsonButton
-          className="end-turn-btn"
-          onClick={onStage}
-          disabled={disabled}
-        >
-          Stage
-        </JsonButton>
-      )}
-      {hasStagedSets && (
-        <>
-          <JsonButton
-            className="end-turn-btn"
-            onClick={onEndTurn}
-            disabled={disabled || !allStagedValid}
-          >
-            End Turn
-          </JsonButton>
-          <JsonButton
-            className="cancel-btn"
-            onClick={onCancelAll}
-            disabled={disabled}
-          >
-            Cancel All
-          </JsonButton>
-        </>
-      )}
-      {!hasStagedSets && !hasSelected && (
-        <>
-          <JsonButton
-            className="draw-btn"
-            onClick={onDraw}
-            disabled={disabled || !canDraw}
-          >
-            Draw Tile
-          </JsonButton>
-          <JsonButton
-            className="end-turn-btn"
-            onClick={onEndTurn}
-            disabled={disabled || !canEndTurn}
-          >
-            End Turn
-          </JsonButton>
-        </>
-      )}
+      <JsonButton
+        className="end-turn-btn"
+        onClick={onStage}
+        disabled={disabled || !hasSelected}
+      >
+        Stage
+      </JsonButton>
+      <JsonButton
+        className="end-turn-btn"
+        onClick={onEndTurn}
+        disabled={disabled || (hasStagedSets ? !allStagedValid : !canEndTurn)}
+      >
+        End Turn
+      </JsonButton>
+      <JsonButton
+        className="cancel-btn"
+        onClick={onCancelAll}
+        disabled={disabled || !hasStagedSets}
+      >
+        Cancel All
+      </JsonButton>
+      <JsonButton
+        className="draw-btn"
+        onClick={onDraw}
+        disabled={disabled || !canDraw || hasSelected || hasStagedSets}
+      >
+        Draw Tile
+      </JsonButton>
     </div>
   );
 }
