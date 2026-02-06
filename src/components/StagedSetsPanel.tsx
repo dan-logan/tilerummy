@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useCallback, useRef } from 'react';
 import { StagedSet } from '../game/types';
 import Tile from './Tile';
 
@@ -15,38 +15,57 @@ interface UnstageButtonProps {
 }
 
 function UnstageButton({ setId, onUnstage, disabled }: UnstageButtonProps) {
-  const pointerStartPos = useRef<{ x: number; y: number } | null>(null);
-  const wasHandled = useRef(false);
+  const pointerStart = useRef<{ x: number; y: number; pointerId: number } | null>(null);
+  const lastPointerUpAt = useRef(0);
 
-  const handlePointerDown = (e: React.PointerEvent) => {
-    pointerStartPos.current = { x: e.clientX, y: e.clientY };
-    wasHandled.current = false;
-  };
+  const handlePointerDown = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
+    if (disabled) return;
+    if (!e.isPrimary) return;
 
-  const handlePointerUp = (e: React.PointerEvent) => {
-    if (disabled || !pointerStartPos.current || wasHandled.current) return;
+    pointerStart.current = {
+      x: e.clientX,
+      y: e.clientY,
+      pointerId: e.pointerId
+    };
+  }, [disabled]);
 
-    const dx = Math.abs(e.clientX - pointerStartPos.current.x);
-    const dy = Math.abs(e.clientY - pointerStartPos.current.y);
+  const handlePointerUp = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
+    if (disabled || !pointerStart.current) return;
+    if (e.pointerId !== pointerStart.current.pointerId) return;
 
-    if (dx < 15 && dy < 15) {
-      wasHandled.current = true;
+    const dx = Math.abs(e.clientX - pointerStart.current.x);
+    const dy = Math.abs(e.clientY - pointerStart.current.y);
+
+    pointerStart.current = null;
+
+    if (dx < 30 && dy < 30) {
+      lastPointerUpAt.current = Date.now();
       onUnstage(setId);
     }
+  }, [disabled, onUnstage, setId]);
 
-    pointerStartPos.current = null;
-  };
+  const handlePointerCancel = useCallback(() => {
+    pointerStart.current = null;
+  }, []);
 
-  const handleClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-  };
+  const handlePointerLeave = useCallback(() => {
+    pointerStart.current = null;
+  }, []);
+
+  const handleClick = useCallback(() => {
+    if (disabled) return;
+    if (Date.now() - lastPointerUpAt.current < 500) return;
+    onUnstage(setId);
+  }, [disabled, onUnstage, setId]);
 
   return (
     <button
       className="unstage-btn"
-      onClick={handleClick}
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerCancel}
+      onPointerLeave={handlePointerLeave}
+      onClick={handleClick}
       disabled={disabled}
     >
       Unstage

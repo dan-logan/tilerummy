@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useCallback, useRef } from 'react';
 
 interface ControlsProps {
   canDraw: boolean;
@@ -13,48 +13,65 @@ interface ControlsProps {
   disabled: boolean;
 }
 
-interface TouchButtonProps {
+interface JsonButtonProps {
   className: string;
   onClick: () => void;
   disabled: boolean;
   children: React.ReactNode;
 }
 
-function TouchButton({ className, onClick, disabled, children }: TouchButtonProps) {
-  const pointerStartPos = useRef<{ x: number; y: number } | null>(null);
-  const wasHandled = useRef(false);
+function JsonButton({ className, onClick, disabled, children }: JsonButtonProps) {
+  const pointerStart = useRef<{ x: number; y: number; pointerId: number } | null>(null);
+  const lastPointerUpAt = useRef(0);
 
-  const handlePointerDown = (e: React.PointerEvent) => {
-    pointerStartPos.current = { x: e.clientX, y: e.clientY };
-    wasHandled.current = false;
-  };
+  const handlePointerDown = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
+    if (disabled) return;
+    if (!e.isPrimary) return;
 
-  const handlePointerUp = (e: React.PointerEvent) => {
-    if (disabled || !pointerStartPos.current || wasHandled.current) return;
+    pointerStart.current = {
+      x: e.clientX,
+      y: e.clientY,
+      pointerId: e.pointerId
+    };
+  }, [disabled]);
 
-    const dx = Math.abs(e.clientX - pointerStartPos.current.x);
-    const dy = Math.abs(e.clientY - pointerStartPos.current.y);
+  const handlePointerUp = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
+    if (disabled || !pointerStart.current) return;
+    if (e.pointerId !== pointerStart.current.pointerId) return;
 
-    // If pointer moved less than 15px, treat as tap/click
-    if (dx < 15 && dy < 15) {
-      wasHandled.current = true;
+    const dx = Math.abs(e.clientX - pointerStart.current.x);
+    const dy = Math.abs(e.clientY - pointerStart.current.y);
+
+    pointerStart.current = null;
+
+    if (dx < 30 && dy < 30) {
+      lastPointerUpAt.current = Date.now();
       onClick();
     }
+  }, [disabled, onClick]);
 
-    pointerStartPos.current = null;
-  };
+  const handlePointerCancel = useCallback(() => {
+    pointerStart.current = null;
+  }, []);
 
-  // Prevent default click to avoid double-firing
-  const handleClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-  };
+  const handlePointerLeave = useCallback(() => {
+    pointerStart.current = null;
+  }, []);
+
+  const handleClick = useCallback(() => {
+    if (disabled) return;
+    if (Date.now() - lastPointerUpAt.current < 500) return;
+    onClick();
+  }, [disabled, onClick]);
 
   return (
     <button
       className={className}
-      onClick={handleClick}
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerCancel}
+      onPointerLeave={handlePointerLeave}
+      onClick={handleClick}
       disabled={disabled}
     >
       {children}
@@ -77,48 +94,48 @@ export default function Controls({
   return (
     <div className="controls">
       {hasSelected && (
-        <TouchButton
+        <JsonButton
           className="end-turn-btn"
           onClick={onStage}
           disabled={disabled}
         >
           Stage
-        </TouchButton>
+        </JsonButton>
       )}
       {hasStagedSets && (
         <>
-          <TouchButton
+          <JsonButton
             className="end-turn-btn"
             onClick={onEndTurn}
             disabled={disabled || !allStagedValid}
           >
             End Turn
-          </TouchButton>
-          <TouchButton
+          </JsonButton>
+          <JsonButton
             className="cancel-btn"
             onClick={onCancelAll}
             disabled={disabled}
           >
             Cancel All
-          </TouchButton>
+          </JsonButton>
         </>
       )}
       {!hasStagedSets && !hasSelected && (
         <>
-          <TouchButton
+          <JsonButton
             className="draw-btn"
             onClick={onDraw}
             disabled={disabled || !canDraw}
           >
             Draw Tile
-          </TouchButton>
-          <TouchButton
+          </JsonButton>
+          <JsonButton
             className="end-turn-btn"
             onClick={onEndTurn}
             disabled={disabled || !canEndTurn}
           >
             End Turn
-          </TouchButton>
+          </JsonButton>
         </>
       )}
     </div>
